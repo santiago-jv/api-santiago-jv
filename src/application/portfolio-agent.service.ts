@@ -78,8 +78,8 @@ export class PortfolioAgentService {
         prompt: inspection.sandboxedPrompt,
         tools: [PortfolioToolsProvider],
         maxSteps: 3,
-        maxOutputTokens: 700,
-        budget: { maxTokens: 3500 },
+        maxOutputTokens: 280,
+        budget: { maxTokens: 2500 },
       });
 
       const elapsedMs = Math.max(2, Date.now() - startMs);
