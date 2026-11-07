@@ -108,7 +108,8 @@ export class PortfolioAgentService {
 
       this.saveToCache(cacheKey, responsePayload);
       return responsePayload;
-    } catch {
+    } catch (err) {
+      console.error('[PortfolioAgentService] generateText error:', err);
       throw new ServiceUnavailableException({
         ok: false,
         code: 'AI_PROVIDER_UNAVAILABLE',

@@ -9,6 +9,14 @@ import { HmacOriginGuard } from './infrastructure/security/hmac-origin.guard.js'
 import { RateLimitGuard } from './infrastructure/security/rate-limit.guard.js';
 import { AgentController } from './presentation/agent.controller.js';
 
+for (const envFile of ['.env', '.env.production']) {
+  try {
+    process.loadEnvFile?.(envFile);
+  } catch {
+    // Ignore if env file does not exist
+  }
+}
+
 function createPrimaryAndFallbackModels() {
   const googleGatewayUrl = process.env.CLOUDFLARE_AI_GATEWAY_GOOGLE_URL?.trim();
   const groqGatewayUrl = process.env.CLOUDFLARE_AI_GATEWAY_GROQ_URL?.trim();
@@ -23,13 +31,13 @@ function createPrimaryAndFallbackModels() {
     ...(groqGatewayUrl ? { baseURL: groqGatewayUrl } : {}),
   });
 
-  const geminiModelId = process.env.GEMINI_MODEL_ID || 'gemini-2.5-flash';
-  const groqModelId = process.env.GROQ_MODEL_ID || 'llama-3.3-70b-versatile';
+  const geminiModelId = process.env.GEMINI_MODEL_ID || 'gemini-3.8-flash';
+  const groqModelId = process.env.GROQ_MODEL_ID || 'openai/gpt-oss-120b';
   const vercelGatewayModel = process.env.AI_GATEWAY_MODEL?.trim();
 
   return {
-    primaryModel: vercelGatewayModel ? vercelGatewayModel : googleProvider(geminiModelId),
-    fallbackModel: groqProvider(groqModelId),
+    primaryModel: vercelGatewayModel ? vercelGatewayModel : groqProvider(groqModelId),
+    fallbackModel: googleProvider(geminiModelId),
   };
 }
 
@@ -42,23 +50,21 @@ const { primaryModel, fallbackModel } = createPrimaryAndFallbackModels();
         default: {
           model: primaryModel,
           maxOutputTokens: 700,
-          fallback: 'groq-fallback',
-          timeout: '20s',
-          retry: {
-            attempts: 2,
-          },
+          fallback: 'gemini-fallback',
+          timeout: '10s',
+          retry: false,
         },
-        'groq-fallback': {
+        'gemini-fallback': {
           model: fallbackModel,
           maxOutputTokens: 700,
-          timeout: '18s',
+          timeout: '12s',
           retry: false,
         },
       },
       defaults: {
         maxSteps: 3,
         maxOutputTokens: 700,
-        timeout: '20s',
+        timeout: '15s',
       },
     }),
   ],

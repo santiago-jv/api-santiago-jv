@@ -57,7 +57,7 @@ export function isAllowedFrontendOrigin(
   const configured = (
     allowedOriginsEnv ||
     process.env.ALLOWED_ORIGINS ||
-    'https://ai.santiago-jv.tech,https://www.santiago-jv.tech'
+    'https://ai.santiago-jv.tech,https://www.santiago-jv.tech,https://ai-santiago-jv.vercel.app'
   )
     .split(',')
     .map((o) => o.trim().toLowerCase())
