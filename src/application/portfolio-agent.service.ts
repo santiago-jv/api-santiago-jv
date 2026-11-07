@@ -2,8 +2,10 @@ import { AiService } from '@nestjs/ai';
 import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { KnowledgeRepositoryService } from '../domain/knowledge-repository.service.js';
 import {
+  type ConversationTurn,
   inspectAndSandboxUserMessage,
   sanitizeModelOutput,
+  stripInvisibleAndControlChars,
 } from '../infrastructure/security/prompt-injection.guard.js';
 import { PortfolioToolsProvider } from './portfolio-tools.provider.js';
 
@@ -15,6 +17,7 @@ export interface ExecutedToolBadge {
 
 export interface AgentChatRequestDto {
   message: string;
+  history?: ConversationTurn[];
 }
 
 export interface AgentChatResponseDto {
@@ -49,7 +52,7 @@ export class PortfolioAgentService {
   ) {}
 
   async chat(dto: AgentChatRequestDto): Promise<AgentChatResponseDto> {
-    const inspection = inspectAndSandboxUserMessage(dto.message);
+    const inspection = inspectAndSandboxUserMessage(dto.message, dto.history);
 
     if (!inspection.safe) {
       throw new BadRequestException({
@@ -62,7 +65,17 @@ export class PortfolioAgentService {
       });
     }
 
-    const cacheKey = inspection.sanitizedMessage.toLowerCase();
+    const historyContextKey = Array.isArray(dto.history)
+      ? dto.history
+          .slice(-2)
+          .map((t) => stripInvisibleAndControlChars(String(t?.content || '')).slice(0, 80).toLowerCase())
+          .filter(Boolean)
+          .join('|')
+      : '';
+    const cacheKey = historyContextKey
+      ? `${historyContextKey}||${inspection.sanitizedMessage.toLowerCase()}`
+      : inspection.sanitizedMessage.toLowerCase();
+
     const cached = this.responseCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return {

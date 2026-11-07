@@ -33,15 +33,17 @@ function createPrimaryAndFallbackModels() {
 
   const geminiModelId = process.env.GEMINI_MODEL_ID || 'gemini-3.8-flash';
   const groqModelId = process.env.GROQ_MODEL_ID || 'openai/gpt-oss-120b';
+  const groqSecondaryModelId = process.env.GROQ_SECONDARY_MODEL_ID || 'openai/gpt-oss-20b';
   const vercelGatewayModel = process.env.AI_GATEWAY_MODEL?.trim();
 
   return {
     primaryModel: vercelGatewayModel ? vercelGatewayModel : groqProvider(groqModelId),
+    secondaryModel: groqProvider(groqSecondaryModelId),
     fallbackModel: googleProvider(geminiModelId),
   };
 }
 
-const { primaryModel, fallbackModel } = createPrimaryAndFallbackModels();
+const { primaryModel, secondaryModel, fallbackModel } = createPrimaryAndFallbackModels();
 
 @Module({
   imports: [
@@ -49,21 +51,28 @@ const { primaryModel, fallbackModel } = createPrimaryAndFallbackModels();
       models: {
         default: {
           model: primaryModel,
-          maxOutputTokens: 700,
+          maxOutputTokens: 280,
+          fallback: 'groq-secondary',
+          timeout: '10s',
+          retry: false,
+        },
+        'groq-secondary': {
+          model: secondaryModel,
+          maxOutputTokens: 280,
           fallback: 'gemini-fallback',
           timeout: '10s',
           retry: false,
         },
         'gemini-fallback': {
           model: fallbackModel,
-          maxOutputTokens: 700,
+          maxOutputTokens: 280,
           timeout: '12s',
           retry: false,
         },
       },
       defaults: {
         maxSteps: 3,
-        maxOutputTokens: 700,
+        maxOutputTokens: 280,
         timeout: '15s',
       },
     }),

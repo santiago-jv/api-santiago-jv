@@ -38,16 +38,58 @@ export class KnowledgeRepositoryService {
   async getSectionsByTopics(topics: string[]): Promise<KnowledgeSection[]> {
     const sections = await this.loadSections();
     if (sections.length === 0 || topics.length === 0) {
-      return sections;
+      return sections.slice(0, 2);
     }
 
-    const normalized = topics.map((t) => t.toLowerCase().trim()).filter(Boolean);
-    const matched = sections.filter((section) => {
-      const haystack = `${section.id} ${section.title} ${section.content}`.toLowerCase();
-      return normalized.some((term) => haystack.includes(term));
-    });
+    const stopWords = new Set([
+      'santiago',
+      'olayo',
+      'villamil',
+      'experience',
+      'experiencia',
+      'company',
+      'companies',
+      'empresa',
+      'empresas',
+      'implementation',
+      'implemented',
+      'implementado',
+      'production',
+      'produccion',
+      'work',
+      'working',
+      'use',
+      'using',
+      'used',
+    ]);
 
-    return matched.length > 0 ? matched : sections;
+    const rawTokens = topics
+      .flatMap((t) => t.toLowerCase().split(/[\s,;/|]+/))
+      .map((t) => t.replace(/[^a-z0-9+#.-]/g, '').trim())
+      .filter((t) => t.length >= 2);
+
+    const specificTokens = rawTokens.filter((t) => !stopWords.has(t));
+    const searchTokens = specificTokens.length > 0 ? specificTokens : rawTokens;
+
+    const scored = sections
+      .map((section) => {
+        const titleLower = `${section.id} ${section.title}`.toLowerCase();
+        const contentLower = section.content.toLowerCase();
+        let score = 0;
+        for (const token of searchTokens) {
+          if (titleLower.includes(token)) score += 3;
+          else if (contentLower.includes(token)) score += 1;
+        }
+        return { section, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (scored.length === 0) {
+      return sections.slice(0, 2);
+    }
+
+    return scored.slice(0, 2).map((item) => item.section);
   }
 
   private async loadSections(): Promise<KnowledgeSection[]> {
