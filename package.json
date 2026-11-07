@@ -1,0 +1,39 @@
+{
+  "name": "api-santiago-jv",
+  "version": "1.0.0",
+  "description": "Official NestJS + @nestjs/ai Agent Backend for Santiago Olayo Villamil (api.santiago-jv.tech)",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/src/main.js",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "pack:secrets": "tsx scripts/pack-secrets.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^4.0.113",
+    "@ai-sdk/groq": "^4.0.77",
+    "@nestjs/ai": "^0.0.2",
+    "@nestjs/common": "^12.4.0",
+    "@nestjs/core": "^12.4.0",
+    "@nestjs/platform-express": "^12.4.0",
+    "@nestjs/resilience": "^0.0.3",
+    "@nestjs/workflows": "^0.0.4",
+    "ai": "^7.0.164",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^12.4.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
