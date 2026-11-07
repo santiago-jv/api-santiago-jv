@@ -54,12 +54,12 @@ export function isAllowedFrontendOrigin(
   allowedOriginsEnv?: string,
   isProd = process.env.NODE_ENV === 'production'
 ): boolean {
-  const configured = (
-    allowedOriginsEnv ||
-    process.env.ALLOWED_ORIGINS ||
-    'https://ai.santiago-jv.tech,https://www.santiago-jv.tech,https://ai-santiago-jv.vercel.app'
-  )
-    .split(',')
+  const configured = [
+    ...(allowedOriginsEnv || process.env.ALLOWED_ORIGINS || '').split(','),
+    'https://ai.santiago-jv.tech',
+    'https://www.santiago-jv.tech',
+    'https://ai-santiago-jv.vercel.app',
+  ]
     .map((o) => o.trim().toLowerCase())
     .filter(Boolean);
 
