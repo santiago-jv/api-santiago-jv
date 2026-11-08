@@ -5,11 +5,11 @@ import { KnowledgeRepositoryService } from '../domain/knowledge-repository.servi
 
 export const QueryKnowledgeSchema = z.object({
   topics: z
-    .array(z.string().min(2).max(80))
+    .array(z.string().min(1).max(120))
     .min(1)
-    .max(6)
+    .max(20)
     .describe(
-      'English or Spanish topic keywords or section IDs translated by the model from the user request (e.g. ["experience", "payments", "architecture", "contact"]).',
+      'Up to 5 concise English or Spanish topic keywords or section IDs (e.g. ["experience", "payments", "architecture", "stack"]).',
     ),
 });
 

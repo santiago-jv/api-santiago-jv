@@ -90,9 +90,9 @@ export class PortfolioAgentService {
         instructions: this.knowledgeRepo.getSystemInstructions(),
         prompt: inspection.sandboxedPrompt,
         tools: [PortfolioToolsProvider],
-        maxSteps: 3,
-        maxOutputTokens: 280,
-        budget: { maxTokens: 2500 },
+        maxSteps: 4,
+        maxOutputTokens: 900,
+        budget: { maxTokens: 4500 },
       });
 
       const elapsedMs = Math.max(2, Date.now() - startMs);
@@ -103,9 +103,37 @@ export class PortfolioAgentService {
         durationMs: Math.max(2, Math.round(elapsedMs / Math.max(1, toolCalls.length))),
       }));
 
+      let finalReply = sanitizeModelOutput(result.text || '');
+
+      if (!finalReply) {
+        const fallbackSections = await this.knowledgeRepo.getSectionsByTopics([
+          inspection.sanitizedMessage,
+        ]);
+        const contextBlock = fallbackSections
+          .map((s) => `## ${s.title}\n${s.content}`)
+          .join('\n\n');
+        const synthesis = await this.aiService.generateText({
+          instructions: this.knowledgeRepo.getSystemInstructions(),
+          prompt: `<knowledge_context>\n${contextBlock}\n</knowledge_context>\n\n${inspection.sandboxedPrompt}`,
+          maxOutputTokens: 900,
+        });
+        finalReply = sanitizeModelOutput(synthesis.text || '');
+        if (executedTools.length === 0) {
+          executedTools.push({
+            toolName: 'query_knowledge_base',
+            argsSummary: `topics=${JSON.stringify([inspection.sanitizedMessage.slice(0, 28)])}`,
+            durationMs: Math.max(2, Date.now() - startMs),
+          });
+        }
+      }
+
+      if (!finalReply) {
+        throw new Error('Model returned an empty response after synthesis.');
+      }
+
       const responsePayload: AgentChatResponseDto = {
         ok: true,
-        reply: sanitizeModelOutput(result.text || ''),
+        reply: finalReply,
         executedTools,
         meta: {
           model: result.model?.modelId || 'gemini-2.5-flash',
