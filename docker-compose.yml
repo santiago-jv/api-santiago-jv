@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: api-santiago-jv-pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-santiago}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-santiago_rag_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-santiago_rag}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - api_santiago_jv_pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER:-santiago} -d $${POSTGRES_DB:-santiago_rag}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  api_santiago_jv_pgvector_data:
+    driver: local

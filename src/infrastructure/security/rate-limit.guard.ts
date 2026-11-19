@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
 } from '@nestjs/common';
+import { verifyCloudflareOriginToken } from './hmac-origin.guard.js';
 
 export interface DualRateLimitDecision {
   allowed: boolean;
@@ -25,13 +26,18 @@ export function checkDualRateLimit(
   ip: string,
   minuteLimit = 8,
   hourLimit = 30,
-  now = Date.now()
+  now = Date.now(),
 ): DualRateLimitDecision {
   if (ipTimestamps.size > MAX_TRACKED_IPS) {
     for (const [key, list] of ipTimestamps.entries()) {
       const fresh = list.filter((ts) => now - ts < HOUR_MS);
       if (fresh.length === 0) ipTimestamps.delete(key);
       else ipTimestamps.set(key, fresh);
+    }
+    while (ipTimestamps.size > MAX_TRACKED_IPS) {
+      const oldestKey = ipTimestamps.keys().next().value;
+      if (!oldestKey) break;
+      ipTimestamps.delete(oldestKey);
     }
   }
 
@@ -83,28 +89,40 @@ export function resetDualRateLimiterForTests(): void {
   ipTimestamps.clear();
 }
 
+interface RateLimitRequest {
+  headers: Record<string, string | string[] | undefined>;
+  ip?: string;
+  _verifiedClientIp?: string;
+  _cfOriginVerified?: boolean;
+}
+
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<{
-      headers: Record<string, string | string[] | undefined>;
-      ip?: string;
-    }>();
+    const req = context.switchToHttp().getRequest<RateLimitRequest>();
     const res = context.switchToHttp().getResponse<{
       setHeader?: (name: string, value: string) => void;
     }>();
 
-    const forwardedClientIp =
-      this.readHeader(req.headers, 'x-client-ip') ||
-      this.readHeader(req.headers, 'cf-connecting-ip') ||
-      this.readHeader(req.headers, 'x-forwarded-for')?.split(',')[0]?.trim() ||
+    const cfTokenVerified =
+      req._cfOriginVerified ??
+      verifyCloudflareOriginToken(this.readHeader(req.headers, 'x-santiago-origin-token'));
+
+    const trustedIp =
+      req._verifiedClientIp ||
+      (cfTokenVerified ? this.readHeader(req.headers, 'cf-connecting-ip')?.trim() : undefined) ||
+      this.readHeader(req.headers, 'x-vercel-forwarded-for')?.split(',')[0]?.trim() ||
+      this.readHeader(req.headers, 'x-real-ip')?.trim() ||
       req.ip ||
+      (!process.env.CF_ORIGIN_SECRET
+        ? this.readHeader(req.headers, 'cf-connecting-ip')?.trim()
+        : undefined) ||
       'unknown-ip';
 
     const minuteMax = Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE || '8', 10) || 8;
     const hourMax = Number.parseInt(process.env.RATE_LIMIT_PER_HOUR || '30', 10) || 30;
 
-    const decision = checkDualRateLimit(forwardedClientIp, minuteMax, hourMax);
+    const decision = checkDualRateLimit(trustedIp, minuteMax, hourMax);
 
     res.setHeader?.('X-RateLimit-Limit-Minute', String(decision.minuteLimit));
     res.setHeader?.('X-RateLimit-Remaining-Minute', String(decision.minuteRemaining));
@@ -120,7 +138,7 @@ export class RateLimitGuard implements CanActivate {
           message: `Rate limit reached. Please wait ${decision.retryAfterSeconds}s before sending another message.`,
           retryAfterSeconds: decision.retryAfterSeconds,
         },
-        HttpStatus.TOO_MANY_REQUESTS
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
@@ -129,7 +147,7 @@ export class RateLimitGuard implements CanActivate {
 
   private readHeader(
     headers: Record<string, string | string[] | undefined>,
-    key: string
+    key: string,
   ): string | undefined {
     const val = headers[key] ?? headers[key.toLowerCase()];
     return Array.isArray(val) ? val[0] : val;

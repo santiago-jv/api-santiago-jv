@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { AiService } from '@nestjs/ai';
 import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { KnowledgeRepositoryService } from '../domain/knowledge-repository.service.js';
@@ -51,8 +52,10 @@ export class PortfolioAgentService {
     private readonly knowledgeRepo: KnowledgeRepositoryService,
   ) {}
 
-  async chat(dto: AgentChatRequestDto): Promise<AgentChatResponseDto> {
-    const inspection = inspectAndSandboxUserMessage(dto.message, dto.history);
+  async chat(dto: AgentChatRequestDto | null | undefined): Promise<AgentChatResponseDto> {
+    const rawMessage = dto && typeof dto === 'object' ? dto.message : undefined;
+    const rawHistory = dto && typeof dto === 'object' ? dto.history : undefined;
+    const inspection = inspectAndSandboxUserMessage(rawMessage, rawHistory);
 
     if (!inspection.safe) {
       throw new BadRequestException({
@@ -65,16 +68,22 @@ export class PortfolioAgentService {
       });
     }
 
-    const historyContextKey = Array.isArray(dto.history)
-      ? dto.history
+    const historyContextKey = Array.isArray(rawHistory)
+      ? rawHistory
           .slice(-2)
           .map((t) => stripInvisibleAndControlChars(String(t?.content || '')).slice(0, 80).toLowerCase())
           .filter(Boolean)
           .join('|')
       : '';
-    const cacheKey = historyContextKey
-      ? `${historyContextKey}||${inspection.sanitizedMessage.toLowerCase()}`
-      : inspection.sanitizedMessage.toLowerCase();
+    const cacheKey = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          msg: inspection.sanitizedMessage.toLowerCase(),
+          history: inspection.sandboxedMessages.slice(0, -1),
+        }),
+      )
+      .digest('hex');
 
     const cached = this.responseCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -88,11 +97,11 @@ export class PortfolioAgentService {
     try {
       const result = await this.aiService.generateText({
         instructions: this.knowledgeRepo.getSystemInstructions(),
-        prompt: inspection.sandboxedPrompt,
+        messages: inspection.sandboxedMessages,
         tools: [PortfolioToolsProvider],
         maxSteps: 4,
         maxOutputTokens: 900,
-        budget: { maxTokens: 4500 },
+        budget: { maxTokens: 5500 },
       });
 
       const elapsedMs = Math.max(2, Date.now() - startMs);
@@ -106,23 +115,33 @@ export class PortfolioAgentService {
       let finalReply = sanitizeModelOutput(result.text || '');
 
       if (!finalReply) {
-        const fallbackSections = await this.knowledgeRepo.getSectionsByTopics([
-          inspection.sanitizedMessage,
-        ]);
-        const contextBlock = fallbackSections
-          .map((s) => `## ${s.title}\n${s.content}`)
+        const ragStartMs = Date.now();
+        const searchQuery = historyContextKey
+          ? `${historyContextKey} ${inspection.sanitizedMessage}`
+          : inspection.sanitizedMessage;
+        const { hits } = await this.knowledgeRepo.searchKnowledge({
+          query: searchQuery,
+          limit: 5,
+        });
+        const contextBlock = hits
+          .map(
+            (hit) =>
+              `## ${hit.contextualHeader} (score=${hit.rrfScore}, via=${hit.matchedVia})\n${hit.content}`,
+          )
           .join('\n\n');
+
         const synthesis = await this.aiService.generateText({
           instructions: this.knowledgeRepo.getSystemInstructions(),
           prompt: `<knowledge_context>\n${contextBlock}\n</knowledge_context>\n\n${inspection.sandboxedPrompt}`,
           maxOutputTokens: 900,
+          budget: { maxTokens: 5500 },
         });
         finalReply = sanitizeModelOutput(synthesis.text || '');
         if (executedTools.length === 0) {
           executedTools.push({
             toolName: 'query_knowledge_base',
-            argsSummary: `topics=${JSON.stringify([inspection.sanitizedMessage.slice(0, 28)])}`,
-            durationMs: Math.max(2, Date.now() - startMs),
+            argsSummary: `query=${JSON.stringify(inspection.sanitizedMessage.slice(0, 32))}`,
+            durationMs: Math.max(2, Date.now() - ragStartMs),
           });
         }
       }
@@ -136,7 +155,7 @@ export class PortfolioAgentService {
         reply: finalReply,
         executedTools,
         meta: {
-          model: result.model?.modelId || 'gemini-2.5-flash',
+          model: result.model?.modelId || 'gemini-3.8-flash',
           provider: result.model?.provider || '@nestjs/ai',
           gatewayRouted: Boolean(
             process.env.CLOUDFLARE_AI_GATEWAY_GOOGLE_URL ||
