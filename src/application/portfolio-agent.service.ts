@@ -95,24 +95,43 @@ export class PortfolioAgentService {
 
     const startMs = Date.now();
     try {
-      const result = await this.aiService.generateText({
-        instructions: this.knowledgeRepo.getSystemInstructions(),
-        messages: inspection.sandboxedMessages,
-        tools: [PortfolioToolsProvider],
-        maxSteps: 4,
-        maxOutputTokens: 900,
-        budget: { maxTokens: 5500 },
-      });
+      const instructions = this.knowledgeRepo.getSystemInstructions();
+      const executedTools: ExecutedToolBadge[] = [];
+      let finalReply = '';
+      let usedModelId = 'gemini-2.5-flash';
+      let usedProvider = '@nestjs/ai';
 
-      const elapsedMs = Math.max(2, Date.now() - startMs);
-      const toolCalls = result.toolCalls || [];
-      const executedTools: ExecutedToolBadge[] = toolCalls.map((tc) => ({
-        toolName: tc.toolName,
-        argsSummary: this.summarizeToolInput(tc.input),
-        durationMs: Math.max(2, Math.round(elapsedMs / Math.max(1, toolCalls.length))),
-      }));
+      try {
+        const result = await this.aiService.generateText({
+          instructions,
+          messages: inspection.sandboxedMessages,
+          tools: [PortfolioToolsProvider],
+          maxSteps: 4,
+          maxOutputTokens: 900,
+          budget: { maxTokens: 5500 },
+        });
 
-      let finalReply = sanitizeModelOutput(result.text || '');
+        const elapsedMs = Math.max(2, Date.now() - startMs);
+        const toolCalls = result.toolCalls || [];
+        for (const tc of toolCalls) {
+          executedTools.push({
+            toolName: tc.toolName,
+            argsSummary: this.summarizeToolInput(tc.input),
+            durationMs: Math.max(2, Math.round(elapsedMs / Math.max(1, toolCalls.length))),
+          });
+        }
+
+        if (toolCalls.length > 0) {
+          finalReply = sanitizeModelOutput(result.text || '');
+          usedModelId = result.model?.modelId || usedModelId;
+          usedProvider = result.model?.provider || usedProvider;
+        }
+      } catch (toolStepErr) {
+        console.warn(
+          '[PortfolioAgentService] primary tool-calling step failed; falling back to direct RAG synthesis:',
+          toolStepErr instanceof Error ? toolStepErr.message : String(toolStepErr),
+        );
+      }
 
       if (!finalReply) {
         const ragStartMs = Date.now();
@@ -121,8 +140,9 @@ export class PortfolioAgentService {
           : inspection.sanitizedMessage;
         const { hits } = await this.knowledgeRepo.searchKnowledge({
           query: searchQuery,
-          limit: 5,
+          limit: 6,
         });
+        const ragDurationMs = Math.max(2, Date.now() - ragStartMs);
         const contextBlock = hits
           .map(
             (hit) =>
@@ -130,18 +150,34 @@ export class PortfolioAgentService {
           )
           .join('\n\n');
 
-        const synthesis = await this.aiService.generateText({
-          instructions: this.knowledgeRepo.getSystemInstructions(),
-          prompt: `<knowledge_context>\n${contextBlock}\n</knowledge_context>\n\n${inspection.sandboxedPrompt}`,
-          maxOutputTokens: 900,
-          budget: { maxTokens: 5500 },
-        });
+        const synthesisPrompt = `<knowledge_context>\n${contextBlock}\n</knowledge_context>\n\n${inspection.sandboxedPrompt}`;
+        let synthesis;
+        try {
+          synthesis = await this.aiService.generateText({
+            instructions,
+            prompt: synthesisPrompt,
+            maxOutputTokens: 900,
+            budget: { maxTokens: 5500 },
+          });
+        } catch {
+          synthesis = await this.aiService.generateText({
+            model: 'gemini-fallback',
+            instructions,
+            prompt: synthesisPrompt,
+            maxOutputTokens: 900,
+            budget: { maxTokens: 5500 },
+          });
+        }
+
         finalReply = sanitizeModelOutput(synthesis.text || '');
+        usedModelId = synthesis.model?.modelId || usedModelId;
+        usedProvider = synthesis.model?.provider || usedProvider;
+
         if (executedTools.length === 0) {
           executedTools.push({
             toolName: 'query_knowledge_base',
             argsSummary: `query=${JSON.stringify(inspection.sanitizedMessage.slice(0, 32))}`,
-            durationMs: Math.max(2, Date.now() - ragStartMs),
+            durationMs: ragDurationMs,
           });
         }
       }
@@ -155,8 +191,8 @@ export class PortfolioAgentService {
         reply: finalReply,
         executedTools,
         meta: {
-          model: result.model?.modelId || 'gemini-3.8-flash',
-          provider: result.model?.provider || '@nestjs/ai',
+          model: usedModelId,
+          provider: usedProvider,
           gatewayRouted: Boolean(
             process.env.CLOUDFLARE_AI_GATEWAY_GOOGLE_URL ||
               process.env.CLOUDFLARE_AI_GATEWAY_GROQ_URL ||

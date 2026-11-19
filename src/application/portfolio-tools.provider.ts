@@ -29,13 +29,15 @@ export const QueryKnowledgeSchema = z.object({
       'skills',
       'education',
     ])
+    .catch('all')
     .optional()
     .describe('Optional category filter to narrow retrieval scope. Defaults to "all".'),
-  limit: z
+  limit: z.coerce
     .number()
     .int()
     .min(1)
     .max(8)
+    .catch(5)
     .optional()
     .describe('Number of top ranked chunks to return (default 5; use 6-8 when evaluating full job descriptions).'),
 });

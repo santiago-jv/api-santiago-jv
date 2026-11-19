@@ -41,7 +41,7 @@ function createModelsAndEmbeddings() {
     ...(groqGatewayUrl ? { baseURL: groqGatewayUrl } : {}),
   });
 
-  const geminiModelId = process.env.GEMINI_MODEL_ID || 'gemini-3.8-flash';
+  const geminiModelId = process.env.GEMINI_MODEL_ID || 'gemini-2.5-flash';
   const groqModelId = process.env.GROQ_MODEL_ID || 'openai/gpt-oss-120b';
   const groqSecondaryModelId = process.env.GROQ_SECONDARY_MODEL_ID || 'openai/gpt-oss-20b';
   const vercelGatewayModel = process.env.AI_GATEWAY_MODEL?.trim();
