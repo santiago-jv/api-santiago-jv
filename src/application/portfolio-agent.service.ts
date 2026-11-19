@@ -121,11 +121,9 @@ export class PortfolioAgentService {
           });
         }
 
-        if (toolCalls.length > 0) {
-          finalReply = sanitizeModelOutput(result.text || '');
-          usedModelId = result.model?.modelId || usedModelId;
-          usedProvider = result.model?.provider || usedProvider;
-        }
+        finalReply = sanitizeModelOutput(result.text || '');
+        usedModelId = result.model?.modelId || usedModelId;
+        usedProvider = result.model?.provider || usedProvider;
       } catch (toolStepErr) {
         console.warn(
           '[PortfolioAgentService] primary tool-calling step failed; falling back to direct RAG synthesis:',
