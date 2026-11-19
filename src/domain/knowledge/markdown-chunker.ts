@@ -46,6 +46,7 @@ const KNOWN_TECH_TERMS = [
   'GitHub Actions',
   'Stripe',
   'Nequi',
+  'Transfiya',
   'Refácil',
   'Tusdatos.co',
   'Datadog',
