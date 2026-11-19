@@ -27,6 +27,23 @@ function shouldUseSsl(connectionString: string): boolean {
   }
 }
 
+function normalizeSslMode(connectionString: string, rejectUnauthorized: boolean): string {
+  if (!rejectUnauthorized) {
+    return connectionString;
+  }
+  try {
+    const parsed = new URL(connectionString);
+    const mode = parsed.searchParams.get('sslmode')?.toLowerCase();
+    if (mode === 'require' || mode === 'prefer' || mode === 'verify-ca') {
+      parsed.searchParams.set('sslmode', 'verify-full');
+      return parsed.toString();
+    }
+  } catch {
+    // Preserve raw connection strings that do not parse as standard URLs
+  }
+  return connectionString;
+}
+
 export function createPostgresPool(connectionString = resolveDatabaseUrl()): Pool | null {
   if (!connectionString) {
     return null;
@@ -34,8 +51,12 @@ export function createPostgresPool(connectionString = resolveDatabaseUrl()): Poo
 
   const useSsl = shouldUseSsl(connectionString);
   const rejectUnauthorized = process.env.PG_SSL_REJECT_UNAUTHORIZED !== 'false';
+  const normalizedUrl = useSsl
+    ? normalizeSslMode(connectionString, rejectUnauthorized)
+    : connectionString;
+
   const config: PoolConfig = {
-    connectionString,
+    connectionString: normalizedUrl,
     max: Number.parseInt(process.env.PG_POOL_MAX || '5', 10) || 5,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,

@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -47,6 +48,11 @@ export async function getServerlessExpressApp(): Promise<Express> {
   await app.init();
   cachedExpressApp = app.getHttpAdapter().getInstance() as Express;
   return cachedExpressApp;
+}
+
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  const app = await getServerlessExpressApp();
+  return app(req, res);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
