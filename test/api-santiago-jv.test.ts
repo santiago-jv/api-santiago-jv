@@ -26,6 +26,10 @@ import {
   type KnowledgeSearchPort,
 } from '../src/domain/knowledge/knowledge.ports.js';
 import { parseKnowledgeMarkdownDocument } from '../src/domain/knowledge/markdown-chunker.js';
+import {
+  buildPublicSiteConfigFromMap,
+  SiteConfigService,
+} from '../src/domain/site-config.service.js';
 import { InMemoryKnowledgeRepository } from '../src/infrastructure/database/in-memory-knowledge.repository.js';
 import { buildWebsearchOrQuery } from '../src/infrastructure/database/pgvector-knowledge.repository.js';
 import { buildRagMigrationSql } from '../src/infrastructure/database/rag-schema.js';
@@ -464,5 +468,37 @@ Monitored production latency in Datadog and product funnels in CleverTap and Met
     assert.equal(result.hits[0].matchedVia, 'lexical');
 
     await moduleRef.close();
+  });
+
+  it('11. cascades primary_domain and custom social/email overrides in SiteConfigService', async () => {
+    const defaults = buildPublicSiteConfigFromMap({});
+    assert.equal(defaults.domains.primaryDomain, 'santiago-jv.tech');
+    assert.equal(defaults.social.xHandle, '@santiagojvtech');
+    assert.equal(defaults.social.xUrl, 'https://x.com/santiagojvtech');
+    assert.equal(defaults.social.contactEmail, 'contact@santiago-jv.tech');
+
+    const migratedDomain = buildPublicSiteConfigFromMap({
+      primary_domain: 'santiago-jv.dev',
+      contact_email: 'santiagojv.work@gmail.com',
+      x_handle: 'santiago_new',
+    });
+
+    assert.equal(migratedDomain.domains.primaryDomain, 'santiago-jv.dev');
+    assert.equal(migratedDomain.domains.portfolioUrl, 'https://www.santiago-jv.dev');
+    assert.equal(migratedDomain.domains.aiConsoleUrl, 'https://ai.santiago-jv.dev');
+    assert.equal(migratedDomain.domains.apiUrl, 'https://api.santiago-jv.dev');
+    assert.equal(migratedDomain.domains.mcpUrl, 'https://mcp.santiago-jv.dev/mcp');
+    assert.equal(
+      migratedDomain.career.resumeEnUrl,
+      'https://www.santiago-jv.dev/Santiago_Olayo_Villamil_CV_EN.pdf',
+    );
+    assert.equal(migratedDomain.social.contactEmail, 'santiagojv.work@gmail.com');
+    assert.equal(migratedDomain.social.xHandle, '@santiago_new');
+    assert.equal(migratedDomain.social.xUrl, 'https://x.com/santiago_new');
+
+    const svc = new SiteConfigService();
+    const res = await svc.getPublicConfigResponse();
+    assert.equal(res.ok, true);
+    assert.equal(res.config.social.xHandle, '@santiagojvtech');
   });
 });

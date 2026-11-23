@@ -61,3 +61,37 @@ CREATE TABLE IF NOT EXISTS rag_query_logs (
 
 CREATE INDEX IF NOT EXISTS idx_rag_query_logs_created_at
   ON rag_query_logs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS site_config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general',
+  description TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO site_config (key, value, category, description) VALUES
+  ('primary_domain', 'santiago-jv.tech', 'domains', 'Primary root domain'),
+  ('portfolio_url', 'https://www.santiago-jv.tech', 'domains', 'Public portfolio base URL'),
+  ('ai_console_url', 'https://ai.santiago-jv.tech', 'domains', 'Interactive AI console base URL'),
+  ('api_url', 'https://api.santiago-jv.tech', 'domains', 'NestJS AI & RAG backend base URL'),
+  ('mcp_url', 'https://mcp.santiago-jv.tech/mcp', 'domains', 'Public MCP Streamable HTTP endpoint'),
+  ('mcp_docs_url', 'https://mcp.santiago-jv.tech/docs', 'domains', 'Public MCP interactive docs URL'),
+  ('allowed_origins', 'https://ai.santiago-jv.tech,https://www.santiago-jv.tech,https://santiago-jv.tech', 'domains', 'Comma-separated CORS and gatekeeper allowed browser origins'),
+  ('contact_email', 'contact@santiago-jv.tech', 'social', 'Primary public and Resend destination email'),
+  ('x_handle', '@santiagojvtech', 'social', 'X (Twitter) handle'),
+  ('x_url', 'https://x.com/santiagojvtech', 'social', 'X (Twitter) profile URL'),
+  ('linkedin_handle', '/in/santiago-jv', 'social', 'LinkedIn short handle'),
+  ('linkedin_url', 'https://www.linkedin.com/in/santiago-jv', 'social', 'LinkedIn profile URL'),
+  ('github_handle', '@santiago-jv', 'social', 'GitHub handle'),
+  ('github_url', 'https://github.com/santiago-jv', 'social', 'GitHub profile URL'),
+  ('medium_handle', '@santiago-jv', 'social', 'Medium handle'),
+  ('medium_url', 'https://medium.com/@santiago-jv/', 'social', 'Medium blog URL'),
+  ('resume_en_url', 'https://www.santiago-jv.tech/Santiago_Olayo_Villamil_CV_EN.pdf', 'career', 'English Resume PDF URL'),
+  ('resume_es_url', 'https://www.santiago-jv.tech/Santiago_Olayo_Villamil_CV_ES.pdf', 'career', 'Spanish Resume PDF URL'),
+  ('availability_status', 'open', 'career', 'Current recruiting availability status (open, selective, unavailable)'),
+  ('work_modalities_en', '100% Remote (Global, US, LatAm, Colombia) or Hybrid / On-site in Barranquilla and Santa Marta, Colombia', 'career', 'Supported work modalities in English'),
+  ('work_modalities_es', '100% Remoto (Global, EE. UU., LatAm, Colombia) o Híbrido / Presencial en Barranquilla y Santa Marta, Colombia', 'career', 'Supported work modalities in Spanish'),
+  ('location_en', 'Barranquilla / Santa Marta, Colombia (UTC-5)', 'career', 'Location and timezone label in English'),
+  ('location_es', 'Barranquilla / Santa Marta, Colombia (UTC-5)', 'career', 'Location and timezone label in Spanish')
+ON CONFLICT (key) DO NOTHING;

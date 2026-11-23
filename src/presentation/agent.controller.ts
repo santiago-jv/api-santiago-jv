@@ -5,7 +5,9 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Optional,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -15,6 +17,7 @@ import {
 } from '../application/portfolio-agent.service.js';
 import { KnowledgeRepositoryService } from '../domain/knowledge-repository.service.js';
 import type { KnowledgeHealthStatus } from '../domain/knowledge/knowledge.types.js';
+import { SiteConfigService } from '../domain/site-config.service.js';
 import { HmacOriginGuard } from '../infrastructure/security/hmac-origin.guard.js';
 import { RateLimitGuard } from '../infrastructure/security/rate-limit.guard.js';
 
@@ -29,7 +32,27 @@ export class AgentController {
     private readonly agentService: PortfolioAgentService,
     @Inject(KnowledgeRepositoryService)
     private readonly knowledgeRepo: KnowledgeRepositoryService,
+    @Optional()
+    @Inject(SiteConfigService)
+    private readonly siteConfigService?: SiteConfigService,
   ) {}
+
+  @Get('v1/config/public')
+  @UseGuards(RateLimitGuard)
+  async getPublicConfig(
+    @Res({ passthrough: true }) res?: { setHeader?: (name: string, value: string) => void },
+  ) {
+    res?.setHeader?.('Access-Control-Allow-Origin', '*');
+    res?.setHeader?.(
+      'Cache-Control',
+      'public, max-age=60, s-maxage=120, stale-while-revalidate=600',
+    );
+    if (!this.siteConfigService) {
+      const fallback = new SiteConfigService();
+      return fallback.getPublicConfigResponse();
+    }
+    return this.siteConfigService.getPublicConfigResponse();
+  }
 
   @Get('health')
   @UseGuards(RateLimitGuard)

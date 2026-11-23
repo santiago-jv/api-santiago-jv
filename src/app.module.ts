@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { PortfolioAgentService } from './application/portfolio-agent.service.js';
 import { PortfolioToolsProvider } from './application/portfolio-tools.provider.js';
 import { KnowledgeRepositoryService } from './domain/knowledge-repository.service.js';
+import { SiteConfigService } from './domain/site-config.service.js';
 import {
   EMBEDDING_PORT,
   KNOWLEDGE_INGESTION_PORT,
@@ -136,6 +137,7 @@ const {
       ) => (poolProvider.isConfigured() ? pgVectorRepo : inMemoryRepo),
     },
     KnowledgeRepositoryService,
+    SiteConfigService,
     PortfolioToolsProvider,
     PortfolioAgentService,
     HmacOriginGuard,
@@ -145,6 +147,7 @@ const {
     PortfolioAgentService,
     PortfolioToolsProvider,
     KnowledgeRepositoryService,
+    SiteConfigService,
     KNOWLEDGE_SEARCH_PORT,
     KNOWLEDGE_INGESTION_PORT,
     EMBEDDING_PORT,

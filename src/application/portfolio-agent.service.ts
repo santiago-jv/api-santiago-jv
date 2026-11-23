@@ -1,7 +1,14 @@
 import crypto from 'node:crypto';
 import { AiService } from '@nestjs/ai';
-import { BadRequestException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { KnowledgeRepositoryService } from '../domain/knowledge-repository.service.js';
+import { SiteConfigService } from '../domain/site-config.service.js';
 import {
   type ConversationTurn,
   inspectAndSandboxUserMessage,
@@ -50,6 +57,9 @@ export class PortfolioAgentService {
     private readonly aiService: AiService,
     @Inject(KnowledgeRepositoryService)
     private readonly knowledgeRepo: KnowledgeRepositoryService,
+    @Optional()
+    @Inject(SiteConfigService)
+    private readonly siteConfigService?: SiteConfigService,
   ) {}
 
   async chat(dto: AgentChatRequestDto | null | undefined): Promise<AgentChatResponseDto> {
@@ -95,7 +105,12 @@ export class PortfolioAgentService {
 
     const startMs = Date.now();
     try {
-      const instructions = this.knowledgeRepo.getSystemInstructions();
+      const baseInstructions = this.knowledgeRepo.getSystemInstructions();
+      const instructions = this.siteConfigService
+        ? `${baseInstructions}\n\n${this.siteConfigService.formatSystemPromptOverrideBlock(
+            await this.siteConfigService.getPublicConfig(),
+          )}`
+        : baseInstructions;
       const executedTools: ExecutedToolBadge[] = [];
       let finalReply = '';
       let usedModelId = 'gemini-2.5-flash';
