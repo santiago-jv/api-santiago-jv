@@ -1,6 +1,13 @@
-# Santiago Olayo — `@nestjs/ai` + `pgvector` Hybrid RAG Backend (`api.santiago-jv.tech`)
+# Santiago Olayo · `@nestjs/ai` + `pgvector` Hybrid RAG Backend (`api.santiago-jv.tech`)
 
-Production **NestJS 12 + `@nestjs/ai` + PostgreSQL (`pgvector`)** backend powering the interactive AI engineering and recruiter assistant at **[ai.santiago-jv.tech](https://ai.santiago-jv.tech)** and **[www.santiago-jv.tech](https://www.santiago-jv.tech)**.
+Production **NestJS 12 + `@nestjs/ai` + Neon PostgreSQL (`pgvector`)** backend powering the interactive AI engineering and recruiter assistant at **[ai.santiago-jv.tech](https://ai.santiago-jv.tech)** and **[www.santiago-jv.tech](https://www.santiago-jv.tech)**.
+
+- **Health Endpoint:** [https://api.santiago-jv.tech/health](https://api.santiago-jv.tech/health)
+- **AI Console:** [https://ai.santiago-jv.tech](https://ai.santiago-jv.tech)
+- **Portfolio:** [https://www.santiago-jv.tech](https://www.santiago-jv.tech)
+- **Public MCP Server:** [https://mcp.santiago-jv.tech](https://mcp.santiago-jv.tech)
+- **X (Twitter):** [@santiagojvtech](https://x.com/santiagojvtech)
+- **LinkedIn:** [linkedin.com/in/santiago-jv](https://www.linkedin.com/in/santiago-jv)
 
 ---
 
@@ -61,11 +68,14 @@ api-santiago-jv/
 
 ## Model Routing & Security Architecture
 
-- **LLM Fallback Chain (`AppModule`):** Primary `openai/gpt-oss-120b` (`GROQ_MODEL_ID` or `AI_GATEWAY_MODEL`) -> secondary `openai/gpt-oss-20b` (`GROQ_SECONDARY_MODEL_ID`) -> fallback `gemini-3.8-flash` (`GEMINI_MODEL_ID`), with optional Cloudflare AI Gateway URL overrides (`CLOUDFLARE_AI_GATEWAY_GOOGLE_URL`, `CLOUDFLARE_AI_GATEWAY_GROQ_URL`).
+- **3-Tier LLM & RAG Fallback Chain (`AppModule` & `PortfolioAgentService`):**
+  1. Primary `openai/gpt-oss-120b` (`GROQ_MODEL_ID` or `AI_GATEWAY_MODEL`) -> secondary `openai/gpt-oss-20b` (`GROQ_SECONDARY_MODEL_ID`) with `@AgentFunction('query_knowledge_base')`.
+  2. Automatic programmatic Hybrid RAG retrieval + `<knowledge_context>` synthesis fallback if tool-calling throws or returns empty.
+  3. Cross-provider Google `gemini-2.5-flash` (`GEMINI_MODEL_ID`) fallback if Groq hits rate limits.
 - **6-Layer Security Shield:**
-  1. Cloudflare WAF / optional AI Gateway edge protection.
-  2. `HmacOriginGuard`: origin allowlist + HMAC-SHA256 (`X-Santiago-Timestamp` + `X-Santiago-Signature` within a 60s replay window).
-  3. `RateLimitGuard`: dual-window per-IP rate limiting (default 8 req/min, 30 req/hour).
+  1. Cloudflare Proxy (`Full (strict)` TLS), WAF Custom Rules (blocking unsigned `POST /v1/agent/chat` at the edge), and Edge Rate Limiting.
+  2. `HmacOriginGuard`: Cloudflare Origin Lock (`X-Santiago-Origin-Token` verified via `timingSafeEqual` against `CF_ORIGIN_SECRET`), strict Origin allowlist, 60s replay cache, and raw-body HMAC-SHA256 v2 binding client IP (`${timestamp}.${clientIp}.${rawBody}`).
+  3. `RateLimitGuard`: dual-window per-IP rate limiting (default 8 req/min, 30 req/hour) trusting only verified client IPs.
   4. `inspectAndSandboxUserMessage`: pre-LLM prompt injection and system extraction blocking (EN/ES) before spending tokens.
   5. XML delimiter sandboxing (`<untrusted_recruiter_input>`) + read-only `@AgentFunction` tools (`list_knowledge_topics`, `query_knowledge_base`).
   6. `sanitizeModelOutput`: post-generation leak sanitizer.
