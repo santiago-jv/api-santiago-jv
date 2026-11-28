@@ -3,12 +3,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { Express } from 'express';
 import { AppModule } from './app.module.js';
 
 let cachedExpressApp: Express | null = null;
 
 function configureHttpApp(app: INestApplication): void {
+  const expressApp = app as NestExpressApplication;
+  expressApp.useBodyParser('json', { limit: '24kb' });
   const expressInstance = app.getHttpAdapter().getInstance() as Express;
   expressInstance.disable('x-powered-by');
 

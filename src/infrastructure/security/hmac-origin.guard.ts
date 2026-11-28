@@ -220,7 +220,9 @@ export class HmacOriginGuard implements CanActivate {
         ? req.rawBody.toString('utf8')
         : JSON.stringify(req.body ?? {});
 
-    const requireV2 = process.env.HMAC_REQUIRE_V2 === 'true';
+    const requireV2 =
+      process.env.HMAC_REQUIRE_V2 === 'true' ||
+      (isProd && process.env.HMAC_REQUIRE_V2 !== 'false');
     const isV2 = sigVersionHeader === '2';
 
     if (requireV2 && !isV2) {
