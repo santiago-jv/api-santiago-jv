@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
-import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { Express } from 'express';
@@ -9,9 +8,8 @@ import { AppModule } from './app.module.js';
 
 let cachedExpressApp: Express | null = null;
 
-function configureHttpApp(app: INestApplication): void {
-  const expressApp = app as NestExpressApplication;
-  expressApp.useBodyParser('json', { limit: '24kb' });
+function configureHttpApp(app: NestExpressApplication): void {
+  app.useBodyParser('json', { limit: '24kb' });
   const expressInstance = app.getHttpAdapter().getInstance() as Express;
   expressInstance.disable('x-powered-by');
 
@@ -41,7 +39,7 @@ export async function getServerlessExpressApp(): Promise<Express> {
     return cachedExpressApp;
   }
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
     logger: ['error', 'warn'],
   });
@@ -60,7 +58,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number.parseInt(process.env.PORT || '4000', 10) || 4000;
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   configureHttpApp(app);
   await app.listen(port);
   console.log(`[api-santiago-jv] NestJS + @nestjs/ai listening on http://localhost:${port}`);
