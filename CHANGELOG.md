@@ -4,6 +4,11 @@ All notable changes to `api-santiago-jv` (`https://api.santiago-jv.tech`) are do
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-11-28
+
+### Bug Fixes
+
+- fix(security): cap Express JSON body parser payload at 24kb (`14b31ac`)
 ## [2.0.2] - 2026-11-28
 
 ### Bug Fixes
